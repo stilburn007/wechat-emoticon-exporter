@@ -27,8 +27,8 @@ wxgf = ["imageio-ffmpeg>=0.4.9"]
 dev = ["pytest>=7.0", "ruff>=0.4"]
 
 [project.urls]
-Homepage = "https://github.com/YOUR_GITHUB_USERNAME/wechat-emoticon-exporter"
-Issues = "https://github.com/YOUR_GITHUB_USERNAME/wechat-emoticon-exporter/issues"
+Homepage = "https://github.com/stilburn007/wechat-emoticon-exporter"
+Issues = "https://github.com/stilburn007/wechat-emoticon-exporter/issues"
 
 [project.scripts]
 wechat-emoticon-exporter = "wechat_emoticon_exporter.cli:main"

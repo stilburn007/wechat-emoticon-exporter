@@ -5,7 +5,7 @@ Thanks for your interest in improving `wechat-emoticon-exporter`!
 ## Development setup
 
 ```bash
-git clone https://github.com/YOUR_GITHUB_USERNAME/wechat-emoticon-exporter.git
+git clone https://github.com/stilburn007/wechat-emoticon-exporter.git
 cd wechat-emoticon-exporter
 python -m venv .venv
 .venv\Scripts\activate          # Windows

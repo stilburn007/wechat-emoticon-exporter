@@ -47,7 +47,7 @@ pip install "wechat-emoticon-exporter[wxgf]"
 或从源码安装：
 
 ```bash
-git clone https://github.com/YOUR_GITHUB_USERNAME/wechat-emoticon-exporter.git
+git clone https://github.com/stilburn007/wechat-emoticon-exporter.git
 cd wechat-emoticon-exporter
 pip install -e ".[dev,wxgf]"
 ```
