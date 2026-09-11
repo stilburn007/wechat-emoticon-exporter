@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wechat-emoticon-exporter"
+version = "0.1.0"
+description = "Decrypt and export WeChat / Weixin 4.x custom emoticons (including wxgf animated stickers) from local data."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Zhou Kang", email = "2208528909@qq.com" }]
+keywords = ["wechat", "weixin", "emoticon", "sticker", "decrypt", "export", "wxgf"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Topic :: Utilities",
+]
+dependencies = ["pycryptodome>=3.18"]
+
+[project.optional-dependencies]
+wxgf = ["imageio-ffmpeg>=0.4.9"]
+dev = ["pytest>=7.0", "ruff>=0.4"]
+
+[project.urls]
+Homepage = "https://github.com/YOUR_GITHUB_USERNAME/wechat-emoticon-exporter"
+Issues = "https://github.com/YOUR_GITHUB_USERNAME/wechat-emoticon-exporter/issues"
+
+[project.scripts]
+wechat-emoticon-exporter = "wechat_emoticon_exporter.cli:main"
+wxemo = "wechat_emoticon_exporter.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+wechat_emoticon_exporter = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "B"]
+ignore = ["E501"]
