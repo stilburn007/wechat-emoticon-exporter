@@ -1,6 +1,5 @@
-# Core dependency: AES for emoticon decryption.
+Flask>=3.0,<4
+Pillow>=10.0
 pycryptodome>=3.18
-
-# Optional: bundles a static ffmpeg used to transcode .wxgf (HEVC) stickers to GIF.
-# Install with:  pip install "wechat-emoticon-exporter[wxgf]"
 imageio-ffmpeg>=0.4.9
+pywebview>=5.0

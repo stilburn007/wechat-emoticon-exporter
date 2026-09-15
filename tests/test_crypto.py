@@ -9,9 +9,8 @@ def _pkcs7(data: bytes, block: int = 16) -> bytes:
 
 
 def test_known_key_vector():
-    # Regression vector captured from a real account (seed 352428248).
-    key = crypto.derive_emoticon_key(352428248, "wxid_yo3vdw8rapa922")
-    assert key.hex() == "e5596a6092f5673aa81ad3511fc90b02"
+    key = crypto.derive_emoticon_key(123456789, "wxid_test")
+    assert key.hex() == "65154769481c6f3903841561909360d1"
 
 
 def test_decrypt_round_trip():
@@ -51,5 +50,5 @@ def test_verify_key():
 
 
 def test_derive_v2_image_key_shape():
-    key = crypto.derive_v2_image_key(352428248, "wxid_yo3vdw8rapa922")
+    key = crypto.derive_v2_image_key(123456789, "wxid_test")
     assert isinstance(key, bytes) and len(key) == 16

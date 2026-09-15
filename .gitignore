@@ -17,6 +17,7 @@ env/
 
 # Test / coverage
 .pytest_cache/
+.pytest-tmp/
 .coverage
 htmlcov/
 .tox/
@@ -25,6 +26,7 @@ htmlcov/
 # Type checkers / linters
 .mypy_cache/
 .ruff_cache/
+*.spec
 
 # Editors
 .vscode/
@@ -41,6 +43,9 @@ Desktop.ini
 /output/
 /emoticon_export/
 /emoticon_export_all/
+.studio-data/
+.artifacts/
+.diagnostics/
 wechat_keys.txt
 keys_and_summary.json
 

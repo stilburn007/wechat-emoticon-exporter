@@ -1,156 +1,135 @@
-# wechat-emoticon-exporter
+# 微信表情工坊
 
-> 微信 4.x 自定义表情导出工具：从本机微信数据中解密并导出表情，支持把微信专有的 `.wxgf` 动图转成 GIF。
+![微信表情工坊](assets/app-icon.png)
 
-[![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows-0078D4.svg)](#环境要求)
+微信 4.x 自定义表情桌面应用与命令行导出工具。应用会读取本机微信数据，解密自定义
+表情，提供中文界面预览、筛选、收藏、任意倍速播放和选择性导出。
 
-**English** — Decrypt and export WeChat / Weixin 4.x custom emoticons from local
-data, including transcoding WeChat's proprietary `.wxgf` (HEVC) animated stickers
-to GIF. See [How it works](#工作原理) below.
+## 功能
 
----
+- 自动发现微信账号、数据目录和自定义表情
+- 从运行中的 `Weixin.exe` 进程恢复当前账号密钥
+- 自动读取并显示当前微信用户昵称
+- 中文网格/列表浏览、搜索、来源筛选和排序
+- GIF 动态预览，支持 `0.1x` 到 `4x` 任意倍速
+- 选择单个或多个表情，按当前倍速重新生成 GIF
+- 通过原生 Windows 保存窗口保存当前表情
+- 保存到指定文件夹、直接选择浏览器文件夹或下载 ZIP
+- `.wxgf` HEVC 动图转 GIF，自动隐藏 ffmpeg 控制台窗口
+- 收藏、批量选择和本地预览缓存自动清理
+- 保留原始 `wxemo` 命令行导出功能
 
-## 免责声明
+## 启动桌面应用
 
-- 本工具仅用于导出**你自己的**微信数据，请勿用于他人数据或任何违法用途。
-- 工具只**读取**本机文件与运行中的微信进程内存，**不会修改**微信数据库或任何微信文件，**不会联网上传**任何数据。
-- 请自行确认使用行为符合当地法律法规与微信用户协议，使用风险自负。
+Windows 10/11，Python 3.10 及以上：
 
-## 特性
-
-- 自动定位微信数据目录与账号
-- 从运行中的 `Weixin.exe` 进程内存恢复账号 `seed`，推导 AES 密钥
-- 解密 `business/emoticon` 下的全部表情（`Persist` / `PersistStore` / `Thumb` / `ThumbStore`）
-- 拆分 `PersistStore` 容器中拼接的多张贴纸
-- 将 `.wxgf`（HEVC）动图转码为可播放的 GIF
-- 输出 `manifest.json` 汇总
-- （实验性）解密 `emoticon.db`，按表情标题重命名文件
-
-## 环境要求
-
-| 项目 | 要求 |
-| --- | --- |
-| 系统 | Windows 10 / 11（进程内存扫描仅支持 Windows） |
-| Python | 3.9 及以上 |
-| 微信 | Weixin / 微信 4.x（针对 4.1.x 开发测试） |
-| ffmpeg | 可选，用于 `.wxgf` → GIF |
-
-## 安装
-
-```bash
-# 从 PyPI（含 wxgf 转码依赖）
-pip install "wechat-emoticon-exporter[wxgf]"
+```powershell
+cd D:\GitHubProjects\wechat-emoticon-exporter
+.\start_studio.ps1
 ```
 
-或从源码安装：
+默认会打开原生 WebView2 窗口，不跳转浏览器。也可以手动运行：
 
-```bash
-git clone https://github.com/stilburn007/wechat-emoticon-exporter.git
-cd wechat-emoticon-exporter
-pip install -e ".[dev,wxgf]"
+```powershell
+python -m pip install -e .
+python run_studio.py
 ```
 
-## 使用
+浏览器调试模式：
 
-确保微信**正在运行并已登录**。
+```powershell
+python run_studio.py --browser
+```
 
-```bash
-# 列出检测到的账号
+## 构建 Windows 应用
+
+```powershell
+.\build_windows.ps1
+```
+
+输出：
+
+```text
+dist\WeChatEmoticonStudio.exe
+dist\WeChatEmoticonStudio\WeChatEmoticonStudio.exe
+dist\WeChatEmoticonStudio-portable.zip
+```
+
+根目录 `dist\WeChatEmoticonStudio.exe` 是小型启动器，实际应用位于
+`dist\WeChatEmoticonStudio`。二者需要一起保留；复制到其他电脑时使用便携压缩包。
+
+## 使用流程
+
+1. 保持微信 4.x 已登录并运行。
+2. 启动应用，选择账号。当前账号显示微信昵称，最近使用账号会标出。
+3. 点击“读取表情”，等待解密和 WXGF 转码完成。
+4. 按来源、类型或名称筛选，点击表情查看详情。
+5. 在详情面板输入或拖动播放速度。
+6. 勾选表情后点击“保存选中”，选择导出速度、目标文件夹或 ZIP。
+7. 点击“保存当前配置”可直接通过 Windows 文件保存窗口导出当前倍速版本。
+
+## 命令行导出
+
+原有 CLI 保留：
+
+```powershell
 wxemo list
-
-# 导出（默认输出到 ./emoticon_export）
 wxemo export --account wxid_xxxxxxxx
-
-# 指定输出目录
 wxemo export --account wxid_xxxxxxxx -o D:\微信表情
-
-# 不转换 .wxgf，保留原始文件
-wxemo export --no-wxgf
-
-# 转换后删除原始 .wxgf（默认保留到 _wxgf原始格式/）
-wxemo export --discard-raw
-
-# 额外把全部文件平铺到 <out>/flat
-wxemo export --flat
-
-# 多账号时指定数据目录
-wxemo export --data-root "D:\Program Files\Tencent\xwechat_files" --account wxid_xxxxxxxx
+wxemo export --account wxid_xxxxxxxx --no-wxgf
 ```
 
-若内存中找不到 `seed`（例如微信版本不匹配），可手动提供：
+内存扫描失败时可手动提供：
 
-```bash
-wxemo export --seed 352428248
-wxemo export --key e5596a6092f5673aa81ad3511fc90b02   # 16 字节密钥的 hex
-```
-
-命令别名：安装后同时提供 `wxemo` 与 `wechat-emoticon-exporter`，也可用
-`python -m wechat_emoticon_exporter`。
-
-## 输出结构
-
-```
-emoticon_export/
-├── Persist/              # 自定义表情原图（gif / png / jpg；.wxgf 转换后为 gif）
-│   └── _wxgf原始格式/     # 转换前的原始 .wxgf（默认保留）
-├── PersistStore/         # 表情包容器拆分出的贴纸
-├── Thumb/                # 缩略图
-├── ThumbStore/           # 表情包缩略图
-├── manifest.json         # 统计与密钥信息
-└── flat/                 # 使用 --flat 时的平铺副本
+```powershell
+wxemo export --account wxid_xxxxxxxx --seed 123456789
+wxemo export --account wxid_xxxxxxxx --key 0123456789abcdef0123456789abcdef
 ```
 
 ## 工作原理
 
-微信 4.x 把表情文件存成 **AES-128-CBC** 密文，且 **IV 等于密钥**：
+微信 4.x 把表情文件存成 AES-128-CBC 密文，IV 等于密钥：
 
-```
+```text
 key       = MD5(f"{seed}{wxid}EMOTICON").digest()[:16]
-plaintext = AES-128-CBC(key, iv=key).decrypt(ciphertext)   # PKCS7 填充
+plaintext = AES-128-CBC(key, iv=key).decrypt(ciphertext)
 ```
 
-- `wxid` 是账号标识（账号目录名去掉尾部 `_xxxx`）。
-- `seed` 是账号级随机整数，仅存在于运行中的 `Weixin.exe` 进程内存里。
-- 本工具扫描进程内存收集 8–12 位数字候选，用已知文件头部（PNG / GIF / JPEG 魔数）逐个校验，命中即为正确 `seed`。
-- 由于同一账号所有表情共用该密钥，且 `IV = key`，明文首块相同的文件（例如都以 PNG 头开始）密文首块也相同——这正是识别该加密方案的线索。
+- `seed` 保存在运行中的微信进程内存中。
+- 应用扫描内存候选值，并用多个表情文件进行一致性和完整解密校验。
+- 微信昵称从与当前 wxid 关联的 `<displayname>` 元数据中读取。
+- `.wxgf` 先按微信容器交给 ffmpeg，失败后显式按 raw HEVC 重新解析。
 
-## 已知限制
+## 隐私
 
-- 仅支持 Windows。
-- `seed` 需在微信运行时获取；内存扫描依赖具体微信版本，失败时请用 `--seed` / `--key`。
-- `.wxgf` → GIF 需要 ffmpeg（可通过 `imageio-ffmpeg` 自动提供）。
-- **实验性**：`--name-from-db` 与 `db` 子命令依赖 `emoticon.db` 的 SQLCipher4
-  密钥在进程内存中的布局。在部分微信版本（如 4.1.13+）上可能无法解出密钥，
-  此时导出会**自动回退**为 md5 文件名。欢迎提交 PR 适配新版本。
+- 只读取本机微信数据和当前用户自己的微信进程内存。
+- 不修改微信数据库或微信文件。
+- 不上传账号、昵称、seed、key 或表情内容。
+- 本地预览缓存位于系统临时目录，退出或清理后删除。
+- 请不要公开分享包含 `seed` 和 `key` 的旧版 `manifest.json`。
 
 ## 开发
 
-```bash
-pip install -e ".[dev,wxgf]"
-python -m pytest          # 运行测试
-python -m ruff check .    # 代码检查
+```powershell
+python -m pip install -e ".[dev]"
+python -m pytest
+python -m ruff check .
 ```
 
 项目结构：
 
-```
+```text
+backend/                  # 桌面应用 API、缓存目录和导出适配
+frontend/                 # 原生 WebView 前端
+assets/                   # 应用 PNG/ICO 图标
 src/wechat_emoticon_exporter/
-├── cli.py          # 命令行入口
-├── locate.py       # 定位数据目录与账号
-├── memory.py       # 读取 Weixin.exe 进程内存（Windows）
-├── crypto.py       # 密钥推导与 AES 解密
-├── containers.py   # 拆分 PersistStore 容器
-├── wxgf.py         # .wxgf → GIF 转码
-├── wcdb.py         # （实验性）解密 SQLCipher4 数据库
-├── naming.py       # （实验性）按标题重命名
-└── exporter.py     # 导出流程编排
+                          # 原始解密、CLI、WXGF 和 WCDB 核心
+run_studio.py             # 桌面窗口启动入口
+launcher.py               # dist 根目录启动器
+build_windows.ps1         # Windows 打包脚本
 ```
 
 ## 致谢
-
-解密方案与 WCDB 处理思路参考了以下开源项目，特此致谢：
 
 - [CN-Grace/Wechat-Emoticon-Parser](https://github.com/CN-Grace/Wechat-Emoticon-Parser)
 - [TANGandXue/wcdb-key-tool](https://github.com/TANGandXue/wcdb-key-tool)

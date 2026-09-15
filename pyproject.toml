@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wechat-emoticon-exporter"
-version = "0.1.0"
-description = "Decrypt and export WeChat / Weixin 4.x custom emoticons (including wxgf animated stickers) from local data."
+version = "0.2.0"
+description = "Desktop app and CLI for browsing, previewing, speed-adjusting and exporting WeChat 4.x custom emoticons."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
@@ -20,7 +20,13 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Topic :: Utilities",
 ]
-dependencies = ["pycryptodome>=3.18"]
+dependencies = [
+  "Flask>=3.0,<4",
+  "Pillow>=10.0",
+  "pycryptodome>=3.18",
+  "imageio-ffmpeg>=0.4.9",
+  "pywebview>=5.0",
+]
 
 [project.optional-dependencies]
 wxgf = ["imageio-ffmpeg>=0.4.9"]

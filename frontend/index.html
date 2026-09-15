@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>微信表情工坊</title>
+    <link rel="stylesheet" href="/static/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <img src="/static/app-icon.png" alt="">
+          </div>
+          <div>
+            <h1>微信表情工坊</h1>
+            <p id="globalStatus">等待连接</p>
+          </div>
+        </div>
+
+        <div class="top-actions">
+          <button class="icon-button mobile-only" id="sidebarToggle" title="目录" aria-label="打开目录">
+            <span data-icon="menu"></span>
+          </button>
+          <div class="account-picker">
+            <span class="field-icon" data-icon="database"></span>
+            <select id="accountSelect" aria-label="微信账号">
+              <option value="">未检测到账号</option>
+            </select>
+          </div>
+          <button class="icon-button" id="dataRootButton" title="数据目录" aria-label="配置数据目录">
+            <span data-icon="folder"></span>
+          </button>
+          <button class="button secondary" id="demoButton">
+            <span data-icon="sparkles"></span>
+            <span>演示</span>
+          </button>
+          <button class="button primary" id="scanButton" disabled>
+            <span data-icon="scan"></span>
+            <span>读取表情</span>
+          </button>
+          <button class="icon-button" id="themeButton" title="切换主题" aria-label="切换主题">
+            <span data-icon="moon"></span>
+          </button>
+        </div>
+      </header>
+
+      <div class="workspace">
+        <aside class="sidebar" id="sidebar">
+          <div class="sidebar-heading">
+            <span>表情库</span>
+            <button class="icon-button small" id="refreshButton" title="刷新账号" aria-label="刷新账号">
+              <span data-icon="refresh"></span>
+            </button>
+          </div>
+
+          <section class="library-summary" id="librarySummary">
+            <div class="summary-primary">
+              <strong id="summaryTotal">0</strong>
+              <span>个表情</span>
+            </div>
+            <div class="summary-grid">
+              <div><strong id="summaryAnimated">0</strong><span>动图</span></div>
+              <div><strong id="summarySize">0 B</strong><span>占用</span></div>
+              <div><strong id="summaryGroups">0</strong><span>分组</span></div>
+            </div>
+          </section>
+
+          <nav class="filter-section" aria-label="表情来源">
+            <div class="section-title">来源</div>
+            <div class="chip-list" id="groupFilters"></div>
+          </nav>
+
+          <nav class="filter-section" aria-label="表情类型">
+            <div class="section-title">类型</div>
+            <div class="segmented vertical" id="typeFilters">
+              <button class="active" data-type="all"><span data-icon="grid"></span>全部</button>
+              <button data-type="animated"><span data-icon="film"></span>动图</button>
+              <button data-type="static"><span data-icon="image"></span>静态</button>
+              <button data-type="thumbnail"><span data-icon="eye"></span>缩略图</button>
+            </div>
+          </nav>
+
+          <details class="advanced-panel">
+            <summary>
+              <span><span data-icon="sliders"></span>高级选项</span>
+              <span data-icon="chevron"></span>
+            </summary>
+            <div class="advanced-fields">
+              <label>
+                <span>Seed</span>
+                <input id="seedInput" type="number" inputmode="numeric" placeholder="自动读取">
+              </label>
+              <label>
+                <span>Key</span>
+                <input id="keyInput" type="password" autocomplete="off" spellcheck="false" placeholder="32 位十六进制">
+              </label>
+              <label class="check-row">
+                <input id="nameFromDbInput" type="checkbox">
+                <span>尝试读取数据库标题</span>
+              </label>
+            </div>
+          </details>
+
+          <button class="danger-link" id="clearLibraryButton" disabled>
+            <span data-icon="trash"></span>
+            <span>清理预览缓存</span>
+          </button>
+        </aside>
+
+        <main class="main-panel">
+          <div class="toolbar">
+            <div class="search-field">
+              <span data-icon="search"></span>
+              <input id="searchInput" type="search" placeholder="搜索文件名或分组" autocomplete="off">
+              <kbd>/</kbd>
+            </div>
+
+            <div class="toolbar-group">
+              <select id="sortSelect" class="select-control" aria-label="排序方式">
+                <option value="name">名称</option>
+                <option value="modified">最近修改</option>
+                <option value="size">文件大小</option>
+                <option value="frames">帧数</option>
+              </select>
+              <div class="segmented compact" id="viewControls">
+                <button class="active" data-view="grid" title="网格" aria-label="网格视图">
+                  <span data-icon="grid"></span>
+                </button>
+                <button data-view="list" title="列表" aria-label="列表视图">
+                  <span data-icon="list"></span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="selection-bar">
+            <div>
+              <strong id="resultSummary">0 个结果</strong>
+              <span id="selectedSummary">未选择</span>
+            </div>
+            <div class="selection-actions">
+              <button class="text-button" id="selectVisibleButton" disabled>
+                <span data-icon="check"></span>选择当前结果
+              </button>
+              <button class="text-button" id="clearSelectionButton" disabled>
+                <span data-icon="x"></span>取消选择
+              </button>
+              <button class="button primary small" id="saveButton" disabled>
+                <span data-icon="download"></span>
+                <span>保存选中</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="content-area">
+            <section class="empty-state" id="emptyState">
+              <div class="empty-visual" aria-hidden="true">
+                <div class="empty-face"><span></span><span></span><i></i></div>
+                <div class="empty-ring"></div>
+              </div>
+              <h2>尚未加载表情库</h2>
+              <p id="emptyMessage">选择微信账号后读取本机自定义表情。</p>
+              <div class="empty-actions">
+                <button class="button primary" id="emptyScanButton" disabled>
+                  <span data-icon="scan"></span>读取表情
+                </button>
+                <button class="button secondary" id="emptyDemoButton">
+                  <span data-icon="sparkles"></span>打开演示
+                </button>
+              </div>
+            </section>
+            <section class="items-grid" id="itemsGrid" aria-live="polite"></section>
+            <button class="load-more" id="loadMoreButton" hidden>显示更多</button>
+          </div>
+        </main>
+
+        <aside class="inspector" id="inspector">
+          <div class="inspector-head">
+            <span>表情详情</span>
+            <button class="icon-button small mobile-only" id="inspectorClose" title="关闭" aria-label="关闭详情">
+              <span data-icon="x"></span>
+            </button>
+          </div>
+
+          <div class="inspector-empty" id="inspectorEmpty">
+            <span data-icon="image"></span>
+            <p>选择一个表情查看详情</p>
+          </div>
+
+          <div class="inspector-content" id="inspectorContent" hidden>
+            <div class="preview-stage" id="previewStage">
+              <div class="preview-checker">
+                <img id="previewImage" alt="">
+                <div class="preview-placeholder" id="previewPlaceholder">
+                  <span data-icon="image"></span>
+                </div>
+              </div>
+              <span class="preview-badge" id="previewBadge">GIF</span>
+            </div>
+
+            <div class="item-heading">
+              <div>
+                <h2 id="itemTitle">-</h2>
+                <p id="itemSubtitle">-</p>
+              </div>
+              <button class="icon-button" id="favoriteButton" title="收藏" aria-label="收藏">
+                <span data-icon="heart"></span>
+              </button>
+            </div>
+
+            <section class="speed-panel">
+              <div class="speed-heading">
+                <span><span data-icon="gauge"></span>播放速度</span>
+                <label class="speed-number">
+                  <input id="previewSpeedNumber" type="number" min="0.1" max="4" step="0.05" value="1">
+                  <span>×</span>
+                </label>
+              </div>
+              <input id="previewSpeed" type="range" min="0.1" max="4" value="1" step="0.05">
+              <div class="speed-presets" id="previewSpeedPresets">
+                <button data-speed="0.25">0.25×</button>
+                <button data-speed="0.5">0.5×</button>
+                <button class="active" data-speed="1">1×</button>
+                <button data-speed="1.5">1.5×</button>
+                <button data-speed="2">2×</button>
+                <button data-speed="4">4×</button>
+              </div>
+            </section>
+
+            <dl class="detail-list" id="itemDetails"></dl>
+
+            <div class="inspector-actions">
+              <button class="button primary" id="saveItemButton">
+                <span data-icon="download"></span>保存当前配置
+              </button>
+              <button class="button secondary" id="selectItemButton">
+                <span data-icon="check"></span>加入选择
+              </button>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <div class="job-panel" id="jobPanel" hidden>
+      <div class="job-icon"><span data-icon="scan"></span></div>
+      <div class="job-copy">
+        <div class="job-line">
+          <strong id="jobTitle">正在读取表情</strong>
+          <span id="jobPercent">0%</span>
+        </div>
+        <p id="jobMessage">准备扫描</p>
+        <div class="progress-track"><span id="jobBar"></span></div>
+      </div>
+      <button class="icon-button small" id="jobCloseButton" title="隐藏" aria-label="隐藏进度">
+        <span data-icon="x"></span>
+      </button>
+    </div>
+
+    <dialog id="dataRootDialog" class="modal">
+      <form method="dialog" class="modal-card">
+        <div class="modal-head">
+          <div>
+            <h2>微信数据目录</h2>
+            <p>留空时自动检测常见路径</p>
+          </div>
+          <button class="icon-button" value="cancel" aria-label="关闭">
+            <span data-icon="x"></span>
+          </button>
+        </div>
+        <label class="stacked-field">
+          <span>额外目录</span>
+          <input id="dataRootInput" type="text" placeholder="D:\Program Files\Tencent\xwechat_files">
+        </label>
+        <div class="detected-roots">
+          <span>自动发现</span>
+          <div id="detectedRootsList"></div>
+        </div>
+        <div class="modal-actions">
+          <button class="button secondary" value="cancel">取消</button>
+          <button class="button primary" id="applyDataRootButton" value="default">应用目录</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="exportDialog" class="modal">
+      <form method="dialog" class="modal-card export-card">
+        <div class="modal-head">
+          <div>
+            <h2>保存表情</h2>
+            <p><span id="exportSelectionCount">0</span> 个文件已选择</p>
+          </div>
+          <button class="icon-button" value="cancel" aria-label="关闭">
+            <span data-icon="x"></span>
+          </button>
+        </div>
+
+        <section class="export-section">
+          <div class="section-title">导出倍速</div>
+          <div class="speed-editor export-speed" id="exportSpeedControls">
+            <div class="export-speed-line">
+              <input id="exportSpeedRange" type="range" min="0.1" max="4" value="1" step="0.05">
+              <label class="speed-number">
+                <input id="exportSpeedNumber" type="number" min="0.1" max="4" step="0.05" value="1">
+                <span>×</span>
+              </label>
+            </div>
+            <div class="speed-presets">
+              <button data-speed="0.25">0.25×</button>
+              <button data-speed="0.5">0.5×</button>
+              <button class="active" data-speed="1">1×</button>
+              <button data-speed="1.5">1.5×</button>
+              <button data-speed="2">2×</button>
+              <button data-speed="4">4×</button>
+            </div>
+          </div>
+        </section>
+
+        <label class="stacked-field">
+          <span>保存到文件夹</span>
+          <input id="exportPath" type="text" placeholder="D:\微信表情导出">
+        </label>
+
+        <label class="check-row export-option">
+          <input id="preserveGroupsInput" type="checkbox" checked>
+          <span>保留来源分组</span>
+        </label>
+
+        <div class="export-status" id="exportStatus" hidden>
+          <div class="progress-track"><span id="exportProgressBar"></span></div>
+          <p id="exportStatusText"></p>
+        </div>
+
+        <div class="modal-actions wrap">
+          <button class="button secondary" id="zipButton">
+            <span data-icon="archive"></span>下载 ZIP
+          </button>
+          <button class="button secondary" id="browserFolderButton" hidden>
+            <span data-icon="folder"></span>浏览器选择文件夹
+          </button>
+          <button class="button primary" id="saveFolderButton">
+            <span data-icon="download"></span>保存到路径
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+    <script type="module" src="/static/app.js"></script>
+  </body>
+</html>
