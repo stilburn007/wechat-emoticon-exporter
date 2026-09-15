@@ -19,6 +19,8 @@ from typing import Any, Optional
 from flask import Flask, jsonify, request, send_file, send_from_directory
 from werkzeug.exceptions import HTTPException
 
+from wechat_emoticon_exporter import __version__
+
 from . import core_bridge
 from .demo import build_demo_library
 from .library import SPEED_MAX, SPEED_MIN, EmoticonLibrary, build_library, copy_item_to
@@ -188,7 +190,7 @@ def create_app(data_dir: Optional[str] = None) -> Flask:
         return jsonify(
             {
                 "name": "WeChat Emoticon Studio",
-                "version": "0.1.0",
+                "version": __version__,
                 **core_bridge.runtime_info(),
             }
         )
