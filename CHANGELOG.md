@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented here.
 
+## [0.2.2] - 2026-09-15
+
+### Added
+
+- Incremental scan logs with timestamps and severity levels.
+- A console section above the emoticon grid.
+- Progressive emoticon display while files are still being read and transcoded.
+- Local per-account key caching for accounts previously read successfully.
+
+### Fixed
+
+- Translate technical key-recovery failures into actionable Chinese messages.
+- Retry memory discovery when a cached account key is no longer valid.
+- Preserve filters and selection while incremental scan results arrive.
+
 ## [0.2.1] - 2026-09-15
 
 ### Fixed

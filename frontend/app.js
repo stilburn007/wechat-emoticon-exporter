@@ -56,9 +56,9 @@ const elements = {
   jobPanel: $("#jobPanel"),
   jobTitle: $("#jobTitle"),
   jobPercent: $("#jobPercent"),
-  jobMessage: $("#jobMessage"),
+  jobLog: $("#jobLog"),
   jobBar: $("#jobBar"),
-  jobCloseButton: $("#jobCloseButton"),
+  consoleToggleButton: $("#consoleToggleButton"),
   dataRootDialog: $("#dataRootDialog"),
   dataRootInput: $("#dataRootInput"),
   chooseDataRootButton: $("#chooseDataRootButton"),
@@ -100,6 +100,8 @@ const state = {
   exportIds: [],
   renderLimit: 240,
   jobTimer: null,
+  jobLogIndex: 0,
+  lastConsoleMessage: "",
 };
 
 const GROUP_LABELS = {
@@ -307,12 +309,37 @@ function renderRoots() {
   });
 }
 
+function clearConsole() {
+  elements.jobLog.innerHTML = "";
+  state.jobLogIndex = 0;
+  state.lastConsoleMessage = "";
+}
+
+function appendConsoleLog(entry) {
+  const message = String(entry.message || "");
+  if (!message) return;
+  const line = document.createElement("div");
+  line.className = `console-line ${entry.level || "info"}`;
+  const time = document.createElement("span");
+  time.className = "console-time";
+  time.textContent = entry.time || new Date().toLocaleTimeString("zh-CN", { hour12: false });
+  const text = document.createElement("span");
+  text.textContent = message;
+  line.append(time, text);
+  elements.jobLog.append(line);
+  elements.jobLog.scrollTop = elements.jobLog.scrollHeight;
+  state.lastConsoleMessage = message;
+}
+
 function setJob(progress, message, title = "正在读取表情") {
-  elements.jobPanel.hidden = false;
+  elements.jobPanel.classList.remove("collapsed");
+  elements.consoleToggleButton.textContent = "收起";
   elements.jobTitle.textContent = title;
   elements.jobPercent.textContent = `${Math.round(progress)}%`;
-  elements.jobMessage.textContent = message || "处理中";
   elements.jobBar.style.width = `${Math.max(0, Math.min(100, progress))}%`;
+  if (message && message !== state.lastConsoleMessage) {
+    appendConsoleLog({ level: "info", message });
+  }
 }
 
 async function scanLibrary() {
@@ -336,12 +363,14 @@ async function scanLibrary() {
   elements.scanButton.disabled = true;
   elements.emptyScanButton.disabled = true;
   clearInterval(state.jobTimer);
+  clearConsole();
   setJob(2, "正在创建扫描任务");
   try {
     const data = await api("/api/scan", { method: "POST", body: payload });
     await pollJob(data.job.id);
   } catch (error) {
-    setJob(100, error.message, "读取失败");
+    appendConsoleLog({ level: "error", message: error.message });
+    setJob(100, null, "读取失败");
     toast(error.message, "error");
   } finally {
     elements.scanButton.disabled = !elements.accountSelect.value;
@@ -351,19 +380,21 @@ async function scanLibrary() {
 
 async function pollJob(jobId) {
   while (true) {
-    const data = await api(`/api/jobs/${encodeURIComponent(jobId)}`);
+    const data = await api(`/api/jobs/${encodeURIComponent(jobId)}?after=${state.jobLogIndex}`);
     const job = data.job;
-    setJob(job.progress, job.message);
+    (job.logs || []).forEach(appendConsoleLog);
+    state.jobLogIndex = job.next_log_index ?? state.jobLogIndex;
+    (job.result?.library ? [job.result.library] : []).forEach((library) => {
+      updateLibrary(library, false);
+    });
+    setJob(job.progress, null, job.status === "complete" ? "读取完成" : "正在读取表情");
     if (job.status === "complete") {
-      activateLibrary(job.result.library);
-      setJob(100, job.message, "读取完成");
-      window.setTimeout(() => {
-        elements.jobPanel.hidden = true;
-      }, 1800);
+      updateLibrary(job.result.library, false);
+      setJob(100, null, "读取完成");
       return;
     }
     if (job.status === "failed") {
-      throw new Error(job.error || "扫描失败");
+      throw new Error(job.error || "读取失败，请检查账号和数据目录。");
     }
     await new Promise((resolve) => window.setTimeout(resolve, 420));
   }
@@ -371,29 +402,33 @@ async function pollJob(jobId) {
 
 async function loadDemo() {
   clearInterval(state.jobTimer);
+  clearConsole();
   setJob(16, "正在准备演示素材", "加载演示");
   try {
     const data = await api("/api/demo", { method: "POST" });
     setJob(100, "演示素材已就绪", "加载完成");
     activateLibrary(data.library);
-    window.setTimeout(() => {
-      elements.jobPanel.hidden = true;
-    }, 1100);
   } catch (error) {
     setJob(100, error.message, "加载失败");
     toast(error.message, "error");
   }
 }
 
-function activateLibrary(library) {
+function updateLibrary(library, resetView) {
+  const isNewLibrary = !state.library || state.library.id !== library.id;
   state.library = library;
-  state.selected.clear();
-  state.activeId = null;
-  state.groupFilter = "all";
-  state.typeFilter = "all";
-  state.query = "";
-  state.renderLimit = 240;
-  elements.searchInput.value = "";
+  const validIds = new Set((library.items || []).map((item) => item.id));
+  state.selected = new Set([...state.selected].filter((itemId) => validIds.has(itemId)));
+  if (state.activeId && !validIds.has(state.activeId)) state.activeId = null;
+  if (resetView || isNewLibrary) {
+    state.selected.clear();
+    state.activeId = null;
+    state.groupFilter = "all";
+    state.typeFilter = "all";
+    state.query = "";
+    state.renderLimit = 240;
+    elements.searchInput.value = "";
+  }
   elements.globalStatus.textContent = `${library.account} · ${library.total} 个表情`;
   elements.clearLibraryButton.disabled = false;
   elements.emptyState.hidden = true;
@@ -402,7 +437,11 @@ function activateLibrary(library) {
   renderTypeFilters();
   applyFilters();
   renderInspector();
-  closeMobilePanels();
+  if (resetView || isNewLibrary) closeMobilePanels();
+}
+
+function activateLibrary(library) {
+  updateLibrary(library, true);
 }
 
 function renderSummary() {
@@ -831,8 +870,9 @@ function bindEvents() {
   });
   elements.sidebarToggle.addEventListener("click", () => elements.sidebar.classList.toggle("open"));
   elements.inspectorClose.addEventListener("click", () => elements.inspector.classList.remove("open"));
-  elements.jobCloseButton.addEventListener("click", () => {
-    elements.jobPanel.hidden = true;
+  elements.consoleToggleButton.addEventListener("click", () => {
+    const collapsed = elements.jobPanel.classList.toggle("collapsed");
+    elements.consoleToggleButton.textContent = collapsed ? "展开" : "收起";
   });
 
   elements.dataRootButton.addEventListener("click", () => {

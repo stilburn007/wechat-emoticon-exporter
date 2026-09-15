@@ -268,3 +268,33 @@ def test_account_display_name_uses_cached_wechat_nickname(tmp_path: Path, monkey
     monkeypatch.setitem(core_bridge._DISPLAY_NAME_CACHE, "wxid_test", "TestUser")
     assert core_bridge.account_display_name(account) == "TestUser"
     assert core_bridge.account_to_dict(account)["display_name"] == "TestUser"
+
+
+def test_job_logs_are_incremental_and_keys_are_cached(tmp_path: Path):
+    app = create_app(str(tmp_path / "studio-data"))
+    state = app.extensions["studio_state"]
+    job = state.add_job("scan")
+    state.log_job(job, "第一条日志", progress=10)
+    state.log_job(job, "第二条日志", level="error", progress=20)
+
+    first_page = job.to_dict(0)
+    second_page = job.to_dict(first_page["next_log_index"])
+    assert [entry["message"] for entry in first_page["logs"]] == ["第一条日志", "第二条日志"]
+    assert second_page["logs"] == []
+
+    state.set_cached_key("wxid_test", "0123456789abcdef0123456789abcdef")
+    assert state.get_cached_key("wxid_test") == "0123456789abcdef0123456789abcdef"
+
+
+def test_key_failure_message_is_actionable(tmp_path: Path):
+    account = core_bridge.locate.Account(
+        folder=str(tmp_path / "wxid_test_0001"),
+        wxid="wxid_test",
+        folder_name="wxid_test_0001",
+    )
+    message = core_bridge.humanize_error(
+        "Could not recover a consistent key for wxid_test_0001.",
+        account,
+    )
+    assert "最近使用" in message
+    assert "Seed" in message

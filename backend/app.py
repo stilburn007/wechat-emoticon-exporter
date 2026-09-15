@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import atexit
+import json
 import os
 import shutil
 import sys
@@ -52,8 +53,9 @@ class ScanJob:
     created_at: float = field(default_factory=time.time)
     result: Optional[dict[str, Any]] = None
     error: Optional[str] = None
+    logs: list[dict[str, Any]] = field(default_factory=list)
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self, after_log: int = 0) -> dict[str, Any]:
         return {
             "id": self.id,
             "kind": self.kind,
@@ -62,12 +64,15 @@ class ScanJob:
             "message": self.message,
             "result": self.result,
             "error": self.error,
+            "logs": self.logs[after_log:],
+            "next_log_index": len(self.logs),
         }
 
 
 class AppState:
     def __init__(self, data_dir: str) -> None:
         self.data_dir = Path(data_dir).expanduser().resolve()
+        self.data_dir.mkdir(parents=True, exist_ok=True)
         runtime_root = Path(tempfile.gettempdir()) / "WeChatEmoticonStudio"
         self.runtime_dir = runtime_root / uuid.uuid4().hex
         self.runtime_dir.mkdir(parents=True, exist_ok=True)
@@ -75,6 +80,7 @@ class AppState:
         self.jobs: dict[str, ScanJob] = {}
         self.allowed_export_dirs: set[str] = set()
         self.lock = threading.RLock()
+        self.key_cache_path = self.data_dir / "account_keys.json"
 
     def add_library(self, library: EmoticonLibrary) -> None:
         with self.lock:
@@ -90,6 +96,50 @@ class AppState:
         with self.lock:
             for key, value in changes.items():
                 setattr(job, key, value)
+
+    def log_job(
+        self,
+        job: ScanJob,
+        message: str,
+        *,
+        level: str = "info",
+        progress: Optional[int] = None,
+    ) -> None:
+        with self.lock:
+            job.logs.append(
+                {
+                    "time": time.strftime("%H:%M:%S"),
+                    "level": level,
+                    "message": message,
+                }
+            )
+            job.message = message
+            if progress is not None:
+                job.progress = max(job.progress, min(100, int(progress)))
+
+    def get_cached_key(self, wxid: str) -> Optional[str]:
+        with self.lock:
+            try:
+                values = json.loads(self.key_cache_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                return None
+            value = values.get(wxid) if isinstance(values, dict) else None
+            return value if isinstance(value, str) and len(value) == 32 else None
+
+    def set_cached_key(self, wxid: str, key_hex: Optional[str]) -> None:
+        if not key_hex:
+            return
+        with self.lock:
+            try:
+                values = json.loads(self.key_cache_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                values = {}
+            if not isinstance(values, dict):
+                values = {}
+            values[wxid] = key_hex
+            temporary = self.key_cache_path.with_suffix(".tmp")
+            temporary.write_text(json.dumps(values, indent=2), encoding="utf-8")
+            os.replace(temporary, self.key_cache_path)
 
     def get_library(self, library_id: str) -> EmoticonLibrary:
         with self.lock:
@@ -237,45 +287,127 @@ def create_app(data_dir: Optional[str] = None) -> Flask:
 
         job = state.add_job("scan")
         output_dir = state.runtime_dir / f"library-{job.id}"
+        display_name = core_bridge.account_display_name(account)
 
         def run_scan() -> None:
-            state.update_job(job, status="running", progress=4, message="Preparing scan")
+            state.update_job(job, status="running", progress=4, message="正在准备读取")
+            state.log_job(job, f"开始读取账号「{display_name}」", progress=4)
+            state.log_job(job, f"账号目录：{account.folder}", progress=5)
+            stop_monitor = threading.Event()
+            monitor_wakeup = threading.Event()
+            monitor_state = {"count": 0}
+
+            def monitor_output() -> None:
+                while not stop_monitor.is_set():
+                    monitor_wakeup.wait(0.35)
+                    monitor_wakeup.clear()
+                    if stop_monitor.is_set():
+                        break
+                    if not output_dir.is_dir():
+                        continue
+                    try:
+                        partial = build_library(
+                            str(output_dir),
+                            display_name,
+                            account.wxid,
+                            library_id=job.id,
+                            created_at=job.created_at,
+                        )
+                    except Exception:
+                        continue
+                    if not partial.items:
+                        continue
+                    state.update_job(job, result={"library": partial.to_dict()})
+                    if len(partial.items) != monitor_state["count"]:
+                        monitor_state["count"] = len(partial.items)
+                        state.log_job(
+                            job,
+                            f"已读取到 {monitor_state['count']} 个表情，界面正在实时更新",
+                        )
+
             try:
+                monitor_thread = threading.Thread(
+                    target=monitor_output,
+                    daemon=True,
+                    name=f"catalog-{job.id}",
+                )
+                monitor_thread.start()
+
                 def forward(message: str) -> None:
                     progress = _progress_from_message(message) or job.progress
-                    state.update_job(job, message=message, progress=max(job.progress, progress))
+                    state.log_job(
+                        job,
+                        core_bridge.safe_log(message),
+                        progress=progress,
+                    )
 
-                result = core_bridge.scan_account(
-                    account,
-                    str(output_dir),
-                    seed=seed,
-                    key_hex=key_hex,
-                    name_from_db=bool(payload.get("name_from_db")),
-                    log=forward,
-                )
+                def perform_scan(override_key: Optional[str] = None):
+                    return core_bridge.scan_account(
+                        account,
+                        str(output_dir),
+                        seed=seed,
+                        key_hex=override_key if override_key is not None else key_hex,
+                        name_from_db=bool(payload.get("name_from_db")),
+                        log=forward,
+                        on_file_written=lambda _path: monitor_wakeup.set(),
+                    )
+
+                cached_key = state.get_cached_key(account.wxid)
+                if key_hex is None and seed is None and cached_key:
+                    state.log_job(job, "检测到本机保存的上次密钥，优先尝试使用", level="info")
+                    try:
+                        result = perform_scan(cached_key)
+                    except RuntimeError:
+                        state.log_job(
+                            job,
+                            "上次保存的密钥已失效，继续扫描当前微信进程内存",
+                            level="warning",
+                        )
+                        result = perform_scan()
+                else:
+                    result = perform_scan()
                 if result.total_files <= 0:
                     raise RuntimeError(
-                        "No emoticons were decrypted. Check the seed/key and whether Weixin.exe is running."
+                        f"账号「{display_name}」没有解出任何表情，请确认微信已登录并重新选择当前账号。"
                     )
-                state.update_job(job, progress=94, message="Building preview catalog")
+                stop_monitor.set()
+                monitor_thread.join(timeout=2)
+                state.log_job(job, "正在生成最终表情目录", progress=95)
                 library = build_library(
                     str(output_dir),
-                    core_bridge.account_display_name(account),
+                    display_name,
                     account.wxid,
+                    library_id=job.id,
+                    created_at=job.created_at,
                 )
                 if not library.items:
-                    raise RuntimeError("The scan completed, but no previewable files were produced.")
+                    raise RuntimeError(f"账号「{display_name}」读取完成，但没有生成可预览的表情。")
                 state.add_library(library)
+                state.set_cached_key(account.wxid, result.key)
                 state.update_job(
                     job,
                     status="complete",
                     progress=100,
-                    message=f"Loaded {len(library.items)} emoticons",
+                    message=f"读取完成，共 {len(library.items)} 个表情",
                     result={"library": library.to_dict()},
                 )
+                state.log_job(
+                    job,
+                    f"读取完成，共 {len(library.items)} 个表情",
+                    level="success",
+                    progress=100,
+                )
             except Exception as error:
+                stop_monitor.set()
                 shutil.rmtree(output_dir, ignore_errors=True)
-                state.update_job(job, status="failed", message="Scan failed", error=str(error))
+                human_message = core_bridge.humanize_error(error, account)
+                state.log_job(job, human_message, level="error", progress=100)
+                state.update_job(
+                    job,
+                    status="failed",
+                    message="读取失败",
+                    error=human_message,
+                )
 
         threading.Thread(target=run_scan, daemon=True, name=f"scan-{job.id}").start()
         return jsonify({"job": job.to_dict()}), 202
@@ -286,7 +418,8 @@ def create_app(data_dir: Optional[str] = None) -> Flask:
             job = state.jobs.get(job_id)
         if job is None:
             return _json_error("Job not found.", 404)
-        return jsonify({"job": job.to_dict()})
+        after_log = max(0, request.args.get("after", 0, type=int))
+        return jsonify({"job": job.to_dict(after_log)})
 
     @app.get("/api/libraries/<library_id>")
     def library_detail(library_id: str):

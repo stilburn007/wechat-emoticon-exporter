@@ -135,10 +135,57 @@ def _wxgf_count(output_dir: str) -> int:
 
 
 def safe_log(message: str) -> str:
-    """Remove account credentials before a log line reaches the browser."""
+    """Translate core log lines and remove credentials before streaming them."""
     if "using supplied key" in message:
-        return "[*] using supplied key"
-    return _CREDENTIAL_RE.sub("credentials verified", message)
+        return "正在验证手动提供的密钥"
+    if _CREDENTIAL_RE.search(message):
+        return "账号密钥验证成功"
+
+    translated = message
+    translated = re.sub(
+        r"^\[\*\] scanning Weixin\.exe memory for the seed \.\.\.$",
+        "正在扫描微信进程内存以恢复账号密钥",
+        translated,
+    )
+    translated = re.sub(
+        r"^\[\*\] (\d+) seed candidate\(s\) found$",
+        r"内存扫描完成：找到 \1 个候选密钥，正在逐一校验",
+        translated,
+    )
+    translated = translated.replace("[+] credentials verified", "账号密钥验证成功")
+    translated = re.sub(r"^\[\*\] (Persist|PersistStore|Thumb|ThumbStore|Temp):", "解密目录 \\1：", translated)
+    translated = translated.replace("ok, ", " 个成功，").replace(" failed", " 个失败")
+    translated = re.sub(
+        r"^\[progress\] wxgf (\d+)/(\d+) (.+)$",
+        r"正在转换动图 \1/\2：\3",
+        translated,
+    )
+    translated = re.sub(r"^\[\*\] named (\d+) file\(s\).*$", r"已根据数据库命名 \1 个文件", translated)
+    translated = re.sub(r"^\[\*\] wxgf -> gif: (\d+) converted$", r"动图转换完成：\1 个", translated)
+    translated = re.sub(r"^\[\*\] flat copy: (\d+) files .*$", r"已生成平铺副本：\1 个文件", translated)
+    if translated.startswith("[!]"):
+        translated = "警告：" + translated[3:].strip()
+    return translated
+
+
+def humanize_error(error: Exception | str, account: Any) -> str:
+    """Convert technical key/decryption failures into actionable Chinese text."""
+    message = str(error)
+    display_name = account_display_name(account)
+    lowered = message.lower()
+    if "consistent key" in lowered or "could not recover the account seed" in lowered:
+        return (
+            f"无法读取账号「{display_name}」的密钥。该账号可能不是当前登录账号，"
+            "或者微信已经重启。请选择标记为“最近使用”的账号；如果它以前读取成功过，"
+            "应用会优先尝试本机保存的密钥。也可以在“高级选项”中填写该账号的 Seed 或 Key。"
+        )
+    if "did not match" in lowered or "did not match any emoticon" in lowered:
+        return f"账号「{display_name}」的 Seed/Key 与当前表情文件不匹配，请重新获取当前登录账号的密钥。"
+    if "no emoticon directory" in lowered:
+        return f"账号「{display_name}」中没有找到表情目录，请确认选择的微信数据目录正确。"
+    if "no emoticon files" in lowered:
+        return f"账号「{display_name}」的表情目录为空，没有可用于验证密钥的文件。"
+    return message
 
 
 def runtime_info() -> dict[str, Any]:
@@ -383,6 +430,7 @@ def scan_account(
     key_hex: Optional[str] = None,
     name_from_db: bool = False,
     log: Callable[[str], None] = print,
+    on_file_written: Optional[Callable[[str], None]] = None,
 ) -> Any:
     """Decrypt one account into an app-managed cache directory."""
     emoticon_dir = locate.find_emoticon_dir(account.folder)
@@ -416,7 +464,18 @@ def scan_account(
 
     with _TRANSCODE_PATCH_LOCK:
         previous_transcoder = exporter.transcode_wxgf
+        previous_writer = exporter._write
         exporter.transcode_wxgf = transcode_with_progress
+
+        def write_and_notify(path: str, data: bytes) -> None:
+            previous_writer(path, data)
+            if on_file_written is not None:
+                try:
+                    on_file_written(path)
+                except Exception:
+                    pass
+
+        exporter._write = write_and_notify
         try:
             return exporter.export_account(
                 account,
@@ -431,3 +490,4 @@ def scan_account(
             )
         finally:
             exporter.transcode_wxgf = previous_transcoder
+            exporter._write = previous_writer

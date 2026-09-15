@@ -155,6 +155,28 @@
             </div>
           </div>
 
+          <section class="console-panel" id="jobPanel">
+            <div class="console-head">
+              <div>
+                <strong>Console</strong>
+                <span id="jobTitle">等待操作</span>
+              </div>
+              <div class="console-actions">
+                <span id="jobPercent">0%</span>
+                <button class="console-toggle" id="consoleToggleButton" type="button">
+                  收起
+                </button>
+              </div>
+            </div>
+            <div class="console-log" id="jobLog">
+              <div class="console-line info">
+                <span class="console-time">--:--:--</span>
+                <span>准备就绪，等待读取微信表情。</span>
+              </div>
+            </div>
+            <div class="progress-track"><span id="jobBar"></span></div>
+          </section>
+
           <div class="content-area">
             <section class="empty-state" id="emptyState">
               <div class="empty-visual" aria-hidden="true">
@@ -243,21 +265,6 @@
           </div>
         </aside>
       </div>
-    </div>
-
-    <div class="job-panel" id="jobPanel" hidden>
-      <div class="job-icon"><span data-icon="scan"></span></div>
-      <div class="job-copy">
-        <div class="job-line">
-          <strong id="jobTitle">正在读取表情</strong>
-          <span id="jobPercent">0%</span>
-        </div>
-        <p id="jobMessage">准备扫描</p>
-        <div class="progress-track"><span id="jobBar"></span></div>
-      </div>
-      <button class="icon-button small" id="jobCloseButton" title="隐藏" aria-label="隐藏进度">
-        <span data-icon="x"></span>
-      </button>
     </div>
 
     <dialog id="dataRootDialog" class="modal">

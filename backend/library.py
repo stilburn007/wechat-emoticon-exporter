@@ -212,14 +212,21 @@ def _adjust_gif_speed(source: Path, target: Path, speed: float) -> None:
     )
 
 
-def build_library(export_dir: str, account: str, wxid: str) -> EmoticonLibrary:
+def build_library(
+    export_dir: str,
+    account: str,
+    wxid: str,
+    *,
+    library_id: Optional[str] = None,
+    created_at: Optional[float] = None,
+) -> EmoticonLibrary:
     root = Path(export_dir).resolve()
     library = EmoticonLibrary(
-        id=uuid.uuid4().hex,
+        id=library_id or uuid.uuid4().hex,
         account=account,
         wxid=wxid,
         root=str(root),
-        created_at=time.time(),
+        created_at=created_at or time.time(),
     )
     items: list[EmoticonItem] = []
     for group in SUBDIRS:
