@@ -30,19 +30,31 @@ def _candidate_roots() -> List[str]:
             roots.append(value)
 
     home = os.path.expanduser("~")
+    documents = os.path.join(home, "Documents")
     roots += [
         os.path.join(home, "xwechat_files"),
-        os.path.join(home, "Documents", "xwechat_files"),
-        os.path.join(home, "Documents", "WeChat Files"),
+        os.path.join(documents, "xwechat_files"),
+        os.path.join(documents, "WeChat Files"),
         os.path.join(os.environ.get("APPDATA", ""), "Tencent", "xwechat_files"),
+        os.path.join(os.environ.get("APPDATA", ""), "Tencent", "WeChat"),
     ]
+    for env_name in ("OneDrive", "OneDriveCommercial", "OneDriveConsumer"):
+        value = os.environ.get(env_name)
+        if value:
+            roots.append(os.path.join(value, "Documents", "xwechat_files"))
     for drive in "CDEFGH":
         base = f"{drive}:\\"
         roots += [
+            os.path.join(base, "xwechat_files"),
+            os.path.join(base, "Documents", "xwechat_files"),
+            os.path.join(base, "Documents", "WeChat Files"),
+            os.path.join(base, "WeChat", "xwechat_files"),
+            os.path.join(base, "Weixin", "xwechat_files"),
             os.path.join(base, "Program Files", "Tencent", "xwechat_files"),
             os.path.join(base, "Program Files (x86)", "Tencent", "xwechat_files"),
             os.path.join(base, "Program", "Tencent Files", "xwechat_files"),
             os.path.join(base, "Tencent", "xwechat_files"),
+            os.path.join(base, "Tencent", "WeChat Files"),
         ]
     return roots
 
@@ -92,6 +104,9 @@ def list_accounts(roots: Iterable[str]) -> List[Account]:
             entries = sorted(os.listdir(root))
         except OSError:
             continue
+        if _is_account_dir(root):
+            name = os.path.basename(root.rstrip("\\/"))
+            accounts.append(Account(folder=root, wxid=normalize_wxid(name), folder_name=name))
         for name in entries:
             folder = os.path.join(root, name)
             if name.lower() in _SKIP_DIRS or not _is_account_dir(folder):

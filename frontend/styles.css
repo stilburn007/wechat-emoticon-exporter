@@ -1391,6 +1391,12 @@ select:focus {
   width: 100%;
 }
 
+.path-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
 .detected-roots {
   display: grid;
   gap: 7px;

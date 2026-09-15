@@ -273,7 +273,12 @@
         </div>
         <label class="stacked-field">
           <span>额外目录</span>
-          <input id="dataRootInput" type="text" placeholder="D:\Program Files\Tencent\xwechat_files">
+          <div class="path-input-row">
+            <input id="dataRootInput" type="text" placeholder="D:\xwechat_files">
+            <button class="button secondary" id="chooseDataRootButton" type="button">
+              <span data-icon="folder"></span>选择文件夹
+            </button>
+          </div>
         </label>
         <div class="detected-roots">
           <span>自动发现</span>

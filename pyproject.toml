@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wechat-emoticon-exporter"
-version = "0.2.0"
+version = "0.2.1"
 description = "Desktop app and CLI for browsing, previewing, speed-adjusting and exporting WeChat 4.x custom emoticons."
 readme = "README.md"
 requires-python = ">=3.9"

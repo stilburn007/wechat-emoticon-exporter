@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here.
 
+## [0.2.1] - 2026-09-15
+
+### Fixed
+
+- Search more common WeChat data-root locations across local drives.
+- Accept an account folder itself as a selectable data root.
+- Keep detected accounts visible even when the emoticon folder is missing.
+- Deduplicate account entries while preferring the folder that contains emoticons.
+- Add a native folder picker to the data-directory dialog.
+
 ## [0.2.0] - 2026-09-15
 
 ### Added

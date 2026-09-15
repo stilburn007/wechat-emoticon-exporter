@@ -61,6 +61,7 @@ const elements = {
   jobCloseButton: $("#jobCloseButton"),
   dataRootDialog: $("#dataRootDialog"),
   dataRootInput: $("#dataRootInput"),
+  chooseDataRootButton: $("#chooseDataRootButton"),
   detectedRootsList: $("#detectedRootsList"),
   applyDataRootButton: $("#applyDataRootButton"),
   exportDialog: $("#exportDialog"),
@@ -846,6 +847,18 @@ function bindEvents() {
     writeStorageJSON("studio.manualRoots", state.manualRoots);
     elements.dataRootDialog.close();
     loadAccounts();
+  });
+  elements.chooseDataRootButton.addEventListener("click", async () => {
+    try {
+      if (window.pywebview?.api?.choose_directory) {
+        const directory = await window.pywebview.api.choose_directory();
+        if (directory) elements.dataRootInput.value = directory;
+        return;
+      }
+      toast("当前运行模式无法调用系统文件夹选择器", "error");
+    } catch (error) {
+      toast(error.message, "error");
+    }
   });
 
   elements.groupFilters.addEventListener("click", (event) => {

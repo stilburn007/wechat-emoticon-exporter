@@ -153,11 +153,17 @@ def runtime_info() -> dict[str, Any]:
 
 def discover_accounts(extra_roots: Optional[Iterable[str]] = None) -> tuple[list[str], list[Any]]:
     roots = locate.find_data_roots(list(extra_roots or []))
-    accounts = [
-        account
-        for account in locate.list_accounts(roots)
-        if locate.find_emoticon_dir(account.folder)
-    ]
+    deduplicated: dict[str, Any] = {}
+    for account in locate.list_accounts(roots):
+        try:
+            modified = Path(account.folder).stat().st_mtime
+        except OSError:
+            modified = 0
+        score = (bool(locate.find_emoticon_dir(account.folder)), modified)
+        current = deduplicated.get(account.wxid)
+        if current is None or score > current[0]:
+            deduplicated[account.wxid] = (score, account)
+    accounts = [entry[1] for entry in deduplicated.values()]
     accounts.sort(key=lambda account: Path(account.folder).stat().st_mtime, reverse=True)
     _resolve_display_names(accounts)
     return roots, accounts

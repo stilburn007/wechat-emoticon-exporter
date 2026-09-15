@@ -21,3 +21,13 @@ def test_list_accounts(tmp_path):
 
 def test_list_accounts_missing_root():
     assert list_accounts(["Z:\\definitely\\missing"]) == []
+
+
+def test_list_accounts_accepts_account_folder_as_root(tmp_path):
+    account = tmp_path / "wxid_direct_0001"
+    (account / "db_storage").mkdir(parents=True)
+
+    accounts = list_accounts([str(account)])
+    assert len(accounts) == 1
+    assert accounts[0].wxid == "wxid_direct"
+    assert accounts[0].folder == str(account)

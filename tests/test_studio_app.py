@@ -176,6 +176,16 @@ def test_recent_account_is_listed_first(tmp_path: Path, monkeypatch):
     assert [account.wxid for account in accounts] == ["wxid_newer", "wxid_older"]
 
 
+def test_discovery_keeps_account_without_emoticon_directory(tmp_path: Path, monkeypatch):
+    account = tmp_path / "wxid_test_0001"
+    (account / "db_storage").mkdir(parents=True)
+
+    monkeypatch.setattr(core_bridge.locate, "find_data_roots", lambda _extra=None: [str(tmp_path)])
+    _roots, accounts = core_bridge.discover_accounts([str(tmp_path)])
+    assert len(accounts) == 1
+    assert core_bridge.account_to_dict(accounts[0])["has_emoticon"] is False
+
+
 def test_ffmpeg_subprocess_is_hidden_on_windows(tmp_path: Path, monkeypatch):
     target = tmp_path / "preview.gif"
     observed: dict[str, object] = {}

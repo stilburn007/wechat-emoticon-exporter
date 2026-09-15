@@ -43,6 +43,16 @@ class DesktopApi:
             return str(result[0]) if result else ""
         return str(result or "")
 
+    def choose_directory(self) -> str:
+        import webview
+
+        if not webview.windows:
+            return ""
+        result = webview.windows[0].create_file_dialog(webview.FOLDER_DIALOG)
+        if isinstance(result, (tuple, list)):
+            return str(result[0]) if result else ""
+        return str(result or "")
+
 
 def _available_port(preferred: int) -> int:
     for port in range(preferred, preferred + 50):
