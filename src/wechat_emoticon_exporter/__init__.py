@@ -8,6 +8,6 @@ The tool only ever *reads* WeChat data. It never modifies the WeChat database or
 any file owned by WeChat.
 """
 
-__version__ = "0.2.2"
+__version__ = "0.2.3"
 
 __all__ = ["__version__"]

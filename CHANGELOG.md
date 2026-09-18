@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here.
 
+## [0.2.3] - 2026-09-18
+
+### Fixed
+
+- Send only newly discovered emoticons during incremental scanning.
+- Append new cards instead of rebuilding the full preview grid on every update.
+- Retry temporary local-service connection failures automatically.
+- Retry failed preview image requests instead of leaving broken placeholders.
+- Replace raw browser network errors with readable Chinese messages.
+
 ## [0.2.2] - 2026-09-15
 
 ### Added

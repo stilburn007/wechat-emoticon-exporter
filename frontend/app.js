@@ -188,6 +188,29 @@ function contentUrl(item, speed = 1, download = false) {
   return `/api/libraries/${encodeURIComponent(state.library.id)}/items/${encodeURIComponent(item.id)}/content?${params}`;
 }
 
+function isNetworkError(error) {
+  return error instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(error?.message || "");
+}
+
+function friendlyError(error, fallback = "操作失败，请稍后重试。") {
+  if (isNetworkError(error)) {
+    return "本地服务连接暂时中断。应用正在自动重试，请稍候。";
+  }
+  return error?.message || fallback;
+}
+
+function retryImage(image) {
+  const retries = Number(image.dataset.retry || 0);
+  if (retries >= 2) return;
+  image.dataset.retry = String(retries + 1);
+  const original = image.dataset.originalSrc || image.src;
+  image.dataset.originalSrc = original;
+  window.setTimeout(() => {
+    const separator = original.includes("?") ? "&" : "?";
+    image.src = `${original}${separator}retry=${retries + 1}`;
+  }, 900 * (retries + 1));
+}
+
 function safeDownloadName(name, used) {
   let cleaned = String(name || "emoticon")
     .replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_")
@@ -369,9 +392,10 @@ async function scanLibrary() {
     const data = await api("/api/scan", { method: "POST", body: payload });
     await pollJob(data.job.id);
   } catch (error) {
-    appendConsoleLog({ level: "error", message: error.message });
+    const message = friendlyError(error, "读取失败，请检查账号和数据目录。");
+    appendConsoleLog({ level: "error", message });
     setJob(100, null, "读取失败");
-    toast(error.message, "error");
+    toast(message, "error");
   } finally {
     elements.scanButton.disabled = !elements.accountSelect.value;
     elements.emptyScanButton.disabled = !elements.accountSelect.value;
@@ -379,24 +403,48 @@ async function scanLibrary() {
 }
 
 async function pollJob(jobId) {
+  let consecutiveNetworkErrors = 0;
   while (true) {
-    const data = await api(`/api/jobs/${encodeURIComponent(jobId)}?after=${state.jobLogIndex}`);
+    let data;
+    try {
+      data = await api(`/api/jobs/${encodeURIComponent(jobId)}?after=${state.jobLogIndex}`);
+      if (consecutiveNetworkErrors > 0) {
+        appendConsoleLog({ level: "success", message: "本地服务连接已恢复，继续读取。" });
+        consecutiveNetworkErrors = 0;
+      }
+    } catch (error) {
+      if (!isNetworkError(error)) throw error;
+      consecutiveNetworkErrors += 1;
+      if (consecutiveNetworkErrors === 1) {
+        appendConsoleLog({
+          level: "warning",
+          message: "本地服务响应较慢，正在自动重试，不会中断读取。",
+        });
+      }
+      if (consecutiveNetworkErrors > 20) {
+        throw new Error("本地服务连接已中断，请关闭应用后重新启动。");
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 700));
+      continue;
+    }
     const job = data.job;
     (job.logs || []).forEach(appendConsoleLog);
     state.jobLogIndex = job.next_log_index ?? state.jobLogIndex;
-    (job.result?.library ? [job.result.library] : []).forEach((library) => {
-      updateLibrary(library, false);
-    });
+    if (job.result?.partial_library) {
+      mergePartialLibrary(job.result.partial_library, job.result.new_items || []);
+    } else if (job.result?.library) {
+      updateLibrary(job.result.library, false, false);
+    }
     setJob(job.progress, null, job.status === "complete" ? "读取完成" : "正在读取表情");
     if (job.status === "complete") {
-      updateLibrary(job.result.library, false);
+      updateLibrary(job.result.library, false, false);
       setJob(100, null, "读取完成");
       return;
     }
     if (job.status === "failed") {
       throw new Error(job.error || "读取失败，请检查账号和数据目录。");
     }
-    await new Promise((resolve) => window.setTimeout(resolve, 420));
+    await new Promise((resolve) => window.setTimeout(resolve, 700));
   }
 }
 
@@ -414,7 +462,22 @@ async function loadDemo() {
   }
 }
 
-function updateLibrary(library, resetView) {
+function mergePartialLibrary(summary, newItems) {
+  const isNewLibrary = !state.library || state.library.id !== summary.id;
+  if (isNewLibrary) {
+    state.library = { ...summary, items: [] };
+    updateLibrary(state.library, true, true);
+  }
+  const existingIds = new Set((state.library.items || []).map((item) => item.id));
+  const additions = newItems.filter((item) => !existingIds.has(item.id));
+  if (additions.length) {
+    state.library.items = [...(state.library.items || []), ...additions];
+  }
+  Object.assign(state.library, summary, { items: state.library.items });
+  updateLibrary(state.library, false, true);
+}
+
+function updateLibrary(library, resetView, incremental = false) {
   const isNewLibrary = !state.library || state.library.id !== library.id;
   state.library = library;
   const validIds = new Set((library.items || []).map((item) => item.id));
@@ -435,8 +498,8 @@ function updateLibrary(library, resetView) {
   renderSummary();
   renderGroupFilters();
   renderTypeFilters();
-  applyFilters();
-  renderInspector();
+  applyFilters({ incremental });
+  if (!incremental) renderInspector();
   if (resetView || isNewLibrary) closeMobilePanels();
 }
 
@@ -471,10 +534,10 @@ function renderTypeFilters() {
   });
 }
 
-function applyFilters() {
+function applyFilters({ incremental = false } = {}) {
   if (!state.library) {
     state.filtered = [];
-    renderItems();
+    renderItems(incremental);
     return;
   }
   const query = state.query.trim().toLocaleLowerCase();
@@ -493,11 +556,11 @@ function applyFilters() {
     return a.name.localeCompare(b.name, "zh-CN", { numeric: true });
   });
   state.filtered = items;
-  state.renderLimit = 240;
-  renderItems();
+  if (!incremental) state.renderLimit = 240;
+  renderItems(incremental);
 }
 
-function renderItems() {
+function renderItems(incremental = false) {
   if (!state.library) {
     elements.itemsGrid.innerHTML = "";
     elements.loadMoreButton.hidden = true;
@@ -508,7 +571,22 @@ function renderItems() {
   elements.emptyState.hidden = true;
   const visible = state.filtered.slice(0, state.renderLimit);
   elements.itemsGrid.classList.toggle("list-view", state.view === "list");
-  elements.itemsGrid.innerHTML = visible.map(renderCard).join("");
+  if (incremental) {
+    const existing = new Map(
+      [...elements.itemsGrid.querySelectorAll("[data-item-id]")].map((card) => [card.dataset.itemId, card]),
+    );
+    visible.forEach((item) => {
+      const current = existing.get(item.id);
+      if (current) {
+        current.classList.toggle("selected", state.selected.has(item.id));
+        current.classList.toggle("active", state.activeId === item.id);
+      } else {
+        elements.itemsGrid.insertAdjacentHTML("beforeend", renderCard(item));
+      }
+    });
+  } else {
+    elements.itemsGrid.innerHTML = visible.map(renderCard).join("");
+  }
   elements.loadMoreButton.hidden = visible.length >= state.filtered.length;
   elements.resultSummary.textContent = `${state.filtered.length} 个结果`;
   updateSelectionUI();
@@ -956,6 +1034,14 @@ function bindEvents() {
     const card = event.target.closest("[data-item-id]");
     if (card) selectItem(card.dataset.itemId);
   });
+  elements.itemsGrid.addEventListener(
+    "error",
+    (event) => {
+      if (event.target instanceof HTMLImageElement) retryImage(event.target);
+    },
+    true,
+  );
+  elements.previewImage.addEventListener("error", () => retryImage(elements.previewImage));
 
   elements.selectVisibleButton.addEventListener("click", () => {
     state.filtered.forEach((item) => state.selected.add(item.id));

@@ -225,7 +225,7 @@ def create_app(data_dir: Optional[str] = None) -> Flask:
         except OSError:
             pass
         app.logger.exception("Unhandled request error")
-        return _json_error("The operation failed unexpectedly.", 500)
+        return _json_error("操作失败，请稍后重试。详细原因已写入本地错误日志。", 500)
 
     @app.get("/favicon.ico")
     def favicon():
@@ -295,7 +295,7 @@ def create_app(data_dir: Optional[str] = None) -> Flask:
             state.log_job(job, f"账号目录：{account.folder}", progress=5)
             stop_monitor = threading.Event()
             monitor_wakeup = threading.Event()
-            monitor_state = {"count": 0}
+            monitor_state = {"count": 0, "seen": set()}
 
             def monitor_output() -> None:
                 while not stop_monitor.is_set():
@@ -317,12 +317,25 @@ def create_app(data_dir: Optional[str] = None) -> Flask:
                         continue
                     if not partial.items:
                         continue
-                    state.update_job(job, result={"library": partial.to_dict()})
                     if len(partial.items) != monitor_state["count"]:
                         monitor_state["count"] = len(partial.items)
                         state.log_job(
                             job,
                             f"已读取到 {monitor_state['count']} 个表情，界面正在实时更新",
+                        )
+                    new_items = [
+                        item.to_dict()
+                        for item in partial.items
+                        if item.id not in monitor_state["seen"]
+                    ]
+                    if new_items:
+                        monitor_state["seen"].update(item["id"] for item in new_items)
+                        state.update_job(
+                            job,
+                            result={
+                                "partial_library": partial.summary(),
+                                "new_items": new_items,
+                            },
                         )
 
             try:
